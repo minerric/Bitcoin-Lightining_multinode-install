@@ -11,7 +11,7 @@ Installation:
 
 wget -q https://raw.githubusercontent.com/minerric/Bitcoin-Lightining_multinode-install/master/Install.sh
 
-bash install.sh
+bash Install.sh
 
 Desktop wallet setup
 After the MN is up and running, you need to configure the desktop wallet accordingly. Here are the steps:
