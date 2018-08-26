@@ -201,7 +201,7 @@ function create_config() {
 rpcuser=$RPCUSER
 rpcpassword=$RPCPASSWORD
 rpcallowip=127.0.0.1
-rpcport=$[BITCOIN_LIGHTNINGPORT+1]
+rpcport=$[BITCOIN_LIGHTNINGPORT-1]
 listen=1
 server=1
 daemon=1
