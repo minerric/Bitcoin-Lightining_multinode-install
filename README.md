@@ -52,4 +52,7 @@ systemctl status $BLTG_USER #To check the service is running.
 systemctl start $BLTG_USER #To start Bitcoin_Lightningd service.  
 systemctl stop $BLTG_USER #To stop Bitcoin_Lightningd service.  
 systemctl is-enabled $BLTG_USER #To check whetether Bitcoin_Lightningd service is enabled on boot or not.  
+
 Any donation is highly appreciated
+
+BLTG = B7HZ3gkt2dSgnwpooZJM7QhNC8Zfup47Dv
