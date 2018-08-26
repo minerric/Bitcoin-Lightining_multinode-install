@@ -8,8 +8,8 @@ Bitcoin-Lightning
 Shell script to install a Bitcoin-Lightning Masternode on a Linux server running Ubuntu 16.04. Use it on your own risk.
 
 Installation:
-wget -q https://raw.githubusercontent.com/minerric/Bitcoin-Lightning/master/Bitcoin-Lightning_install.sh
-bash Bitcoin-Lightning_install.sh
+wget -q https://raw.githubusercontent.com/minerric/Bitcoin-Lightining_multinode-install/master/Install.sh
+bash install.sh
 
 Desktop wallet setup
 After the MN is up and running, you need to configure the desktop wallet accordingly. Here are the steps:
