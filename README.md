@@ -9,6 +9,7 @@ Shell script to install a Bitcoin-Lightning Masternode on a Linux server running
 
 Installation:
 wget -q https://raw.githubusercontent.com/minerric/Bitcoin-Lightining_multinode-install/master/Install.sh
+
 bash install.sh
 
 Desktop wallet setup
