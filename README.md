@@ -13,45 +13,51 @@ wget -q https://raw.githubusercontent.com/minerric/Bitcoin-Lightining_multinode-
 
 bash Install.sh
 
-Desktop wallet setup
-After the MN is up and running, you need to configure the desktop wallet accordingly. Here are the steps:
+## Desktop wallet setup  
 
-Open the Bitcoin-Lightning Desktop Wallet.
-Go to RECEIVE and create a New Address: MN1
-Send 3000 BLTG to MN1.
-Wait for 15 confirmations.
-Go to Help -> "Debug window - Console"
-Type the following command: masternode outputs
-Go to Masternodes tab
-Click Create and fill the details:
-Alias: MN1
-Address: VPS_IP:PORT
-Privkey: Masternode Private Key
-TxHash: First value from Step 6
-Output index: Second value from Step 6
-Reward address: leave blank
-Reward %: leave blank
-Click OK to add the masternode
-Click Start All
-Multiple MN on one VPS:
-It is possible to run multiple Bitcoin-Lightning Master Nodes on the same VPS. Each MN will run under a different user you will choose during installation.
+After the MN is up and running, you need to configure the desktop wallet accordingly. Here are the steps:  
+1. Open the Bitcoin_Lightning Desktop Wallet.  
+2. Go to RECEIVE and create a New Address: **MN1**  
+3. Send **3000** BLT to **MN1**.  
+4. Wait for 15 confirmations.  
+5. Go to **Help -> "Debug window - Console"**  
+6. Type the following command: **masternode outputs**  
+7. Go to **Masternodes** tab  
+8. Click **Create** and fill the details:  
+* Alias: **MN1**  
+* Address: **VPS_IP:PORT**  
+* Privkey: **Masternode Private Key**  
+* TxHash: **First value from Step 6**  
+* Output index:  **Second value from Step 6**  
+* Reward address: leave blank  
+* Reward %: leave blank  
+9. Click **OK** to add the masternode  
+10. Click **Start All**  
+***
 
-Usage:
-For security reasons Bitcoin-Lightning is installed under Bitcoin-Lightning user, hence you need to su - Bitcoin-Lightning before checking:
+## Multiple MN on one VPS:
 
-BLTG_USER=Bitcoin-Lightning #replace Bitcoin-Lightning with the MN username you want to check
+It is possible to run multiple **Bitcoin Lightning** Master Nodes on the same VPS. Each MN will run under a different user you will choose during installation.  
+***
 
-su - $BLTG_USER
-Bitcoin_Lightningd masternode status
-Bitcoin_Lightningd getinfo
-Also, if you want to check/start/stop Bitcoin_Lightningd , run one of the following commands as root:
+## Usage:  
 
-BLTG_USER=Bitcoin-Lightning  #replace Bitcoin-Lightning with the MN username you want to check  
-  
-systemctl status $BLTG_USER #To check the service is running.  
-systemctl start $BLTG_USER #To start Bitcoin_Lightningd service.  
-systemctl stop $BLTG_USER #To stop Bitcoin_Lightningd service.  
-systemctl is-enabled $BLTG_USER #To check whetether Bitcoin_Lightningd service is enabled on boot or not.  
+For security reasons **Bitcoin Lightning** is installed under **btl** user, hence you need to **su - btl** before checking:    
+```
+BLT_USER=btl #replace btl with the MN username you want to check
+su - $BLT_USER  
+Bitcoing_Lightningd masternode status  
+Bitcoing_Lightningd getinfo  
+```  
+Also, if you want to check/start/stop **Bitcoin Ligthning** , run one of the following commands as **root**:
+
+```
+BLT_USER=btl  #replace btl with the MN username you want to check  
+systemctl status $BLT_USER #To check the service is running.  
+systemctl start $BLT_USER #To start Bitcoin Lightning service.  
+systemctl stop $ABLT_USER #To stop Bitcoin Lightning service.  
+systemctl is-enabled $BLT_USER #To check whetether Bitcoin Lightning service is enabled on boot or not.  
+```   
 
 Any donation is highly appreciated
 
