@@ -5,7 +5,7 @@ CONFIG_FILE="Bitcoin_Lightning.conf"
 BITCOIN_LIGHTNING_DAEMON="/usr/local/bin/Bitcoin-Lightningd"
 BITCOIN_LIGHTNING_REPO="https://github.com/Bitcoinlightning/Bitcoin-Lightning.git"
 DEFAULTBITCOIN_LIGHTNINGPORT=17127
-DEFAULTBITCOIN_LIGHTNINGUSER="BitcoinLightning"
+DEFAULTBITCOIN_LIGHTNINGUSER="Bitcoin-Lightning"
 NODEIP=$(curl -s4 icanhazip.com)
 
 
