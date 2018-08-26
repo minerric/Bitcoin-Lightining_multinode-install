@@ -2,11 +2,12 @@
 
 TMP_FOLDER=$(mktemp -d)
 CONFIG_FILE="Bitcoin_Lightning.conf"
-BITCOIN_LIGHTNING_DAEMON="/usr/local/bin/Bitcoin-Lightningd"
-BITCOIN_LIGHTNING_REPO="https://github.com/Bitcoinlightning/Bitcoin-Lightning.git"
-DEFAULTBITCOIN_LIGHTNINGPORT=17127
-DEFAULTBITCOIN_LIGHTNINGUSER="Bitcoin-Lightning"
-NODEIP=$(curl -s4 icanhazip.com)
+BTL_DAEMON="/usr/local/bin/Bitcoin_Lightningd"
+BTL_REPO="https://github.com/Bitcoinlightning/Bitcoin-Lightning/releases/download/v1.1.0.0/Bitcoin_Lightning-Daemon-1.1.0.0.tar.gz"
+BTL_ZIP=$(echo $BTL_REPO | awk -F'/' '{print $NF}')
+DEFAULTBTLPORT=17127
+DEFAULTBTLUSER="btl"
+NODEIP=$(curl -s4 api.ipify.org)
 
 
 RED='\033[0;31m'
@@ -34,19 +35,19 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
-if [ -n "$(pidof $BITCOIN_LIGHTNING_DAEMON)" ] || [ -e "$BITCOIN_LIGHTNING_DAEMOM" ] ; then
+if [ -n "$(pidof $BTL_DAEMON)" ] || [ -e "$BTL_DAEMOM" ] ; then
   echo -e "${GREEN}\c"
-  read -e -p "Bitcoin_Lightning is already installed. Do you want to add another MN? [Y/N]" NEW_BITCOIN_LIGHTNING
+  read -e -p "Bitcoin-Lightning is already installed. Do you want to add another MN? [Y/N]" NEW_BTL
   echo -e "{NC}"
   clear
 else
-  NEW_BITCOIN_LIGHTNING="new"
+  NEW_BTL="new"
 fi
 }
 
 function prepare_system() {
 
-echo -e "Prepare the system to install Bitcoin_Lightning master node."
+echo -e "Preparing the system to install BitcoinLightning master node."
 apt-get update >/dev/null 2>&1
 DEBIAN_FRONTEND=noninteractive apt-get update > /dev/null 2>&1
 DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -y -qq upgrade >/dev/null 2>&1
@@ -58,7 +59,7 @@ apt-get update >/dev/null 2>&1
 apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" make software-properties-common \
 build-essential libtool autoconf libssl-dev libboost-dev libboost-chrono-dev libboost-filesystem-dev libboost-program-options-dev \
 libboost-system-dev libboost-test-dev libboost-thread-dev sudo automake git wget pwgen curl libdb4.8-dev bsdmainutils libdb4.8++-dev \
-libminiupnpc-dev libgmp3-dev >/dev/null 2>&1
+libminiupnpc-dev libgmp3-dev ufw >/dev/null 2>&1
 clear
 if [ "$?" -gt "0" ];
   then
@@ -69,112 +70,90 @@ if [ "$?" -gt "0" ];
     echo "apt-get update"
     echo "apt install -y make build-essential libtool software-properties-common autoconf libssl-dev libboost-dev libboost-chrono-dev libboost-filesystem-dev \
 libboost-program-options-dev libboost-system-dev libboost-test-dev libboost-thread-dev sudo automake git pwgen curl libdb4.8-dev \
-bsdmainutils libdb4.8++-dev libminiupnpc-dev libgmp3-dev"
+bsdmainutils libdb4.8++-dev libminiupnpc-dev libgmp3-dev ufw"
  exit 1
 fi
 
 clear
-echo -e "Checking if swap space is needed."
-PHYMEM=$(free -g|awk '/^Mem:/{print $2}')
-SWAP=$(free -g|awk '/^Swap:/{print $2}')
-if [ "$PHYMEM" -lt "2" ] && [ -n "$SWAP" ]
-  then
-    echo -e "${GREEN}Server is running with less than 2G of RAM without SWAP, creating 2G swap file.${NC}"
-    SWAPFILE=$(mktemp)
-    dd if=/dev/zero of=$SWAPFILE bs=1024 count=2M
-    chmod 600 $SWAPFILE
-    mkswap $SWAPFILE
-    swapon -a $SWAPFILE
-else
-  echo -e "${GREEN}Server running with at least 2G of RAM, no swap needed.${NC}"
-fi
-clear
 }
 
-function compile_bitcoin_lightning() {
-  echo -e "Clone git repo and compile it. This may take some time. Press a key to continue."
-  read -n 1 -s -r -p ""
-
+function compile_node() {
+  echo -e "Downloading BTL binary files."
   cd $TMP_FOLDER
-  git clone https://github.com/bitcoin-core/secp256k1
-  cd secp256k1
-  chmod +x ./autogen.sh
-  ./autogen.sh
-  ./configure
-  make
-  ./tests
-  sudo make install 
-  clear 
-
-  cd $TMP_FOLDER
-  git clone $BITCOIN_LIGHTNING_REPO
-  cd Bitcoin-Lightning/src
-  make -f makefile.unix 
-  compile_error Bitcoin-Lightning
-  cp -a Bitcoin-Lightningd /usr/local/bin
-  cd ~
+  wget -q $BTL_REPO
+  tar xvzf $BTL_ZIP >/dev/null 2>&1
+  chmod +x ./Bitcoin_Lightningd
+  cp -a  ./Bitcoin_Lightningd /usr/local/bin 
+  cd ~ >/dev/null 2>&1
   rm -rf $TMP_FOLDER
   clear
 }
 
 function enable_firewall() {
-  FWSTATUS=$(ufw status 2>/dev/null|awk '/^Status:/{print $NF}')
-  if [ "$FWSTATUS" = "active" ]; then
-    echo -e "Setting up firewall to allow ingress on port ${GREEN}$BITCOIN_LIGHTNINGPORT${NC}"
-    ufw allow $BITCOIN_LIGHTNINGPORT/tcp comment "Bitcoin-Lightning MN port" >/dev/null
-  fi
+  echo -e "Installing fail2ban and setting up firewall to allow ingress on port ${GREEN}$BTLPORT${NC}"
+  ufw allow $BTLPORT/tcp comment "BTL MN port" >/dev/null
+  ufw allow $[BTLPORT-1]/tcp comment "BTL RPC port" >/dev/null
+  ufw allow ssh comment "SSH" >/dev/null 2>&1
+  ufw limit ssh/tcp >/dev/null 2>&1
+  ufw default allow outgoing >/dev/null 2>&1
+  echo "y" | ufw enable >/dev/null 2>&1
 }
 
-function systemd_Bitcoin-Lightning() {
-  cat << EOF > /etc/systemd/system/$BITCOIN_LIGHTNINGUSER.service
+function configure_systemd() {
+  cat << EOF > /etc/systemd/system/$BTLUSER.service
 [Unit]
-Description=Bitcoin-Lightning service
+Description=BTL service
 After=network.target
-
 [Service]
-ExecStart=$BITCOIN_LIGHTNING_DAEMON -conf=$BITCOIN_LIGHTNINGFOLDER/$CONFIG_FILE -datadir=$BITCOIN_LIGHTNINGFOLDER
-ExecStop=$BITCOIN_LIGHTNING_DAEMON -conf=$BITCOIN_LIGHTNINGFOLDER/$CONFIG_FILE -datadir=$BITCOIN_LIGHTNINGFOLDER stop
-Restart=on-abort
-User=$BITCOIN_LIGHTNINGUSER
-Group=$BITCOIN_LIGHTNINGUSER
-
+Type=forking
+ExecStart=$BTL_DAEMON -daemon -conf=$BTLFOLDER/$CONFIG_FILE -datadir=$BTLFOLDER
+ExecStop=$BTL_DAEMON -conf=$BTLFOLDER/$CONFIG_FILE -datadir=$BTLFOLDER stop
+User=$BTLUSER
+Group=$BTLUSER
+Restart=always
+PrivateTmp=true
+TimeoutStopSec=60s
+TimeoutStartSec=10s
+StartLimitInterval=120s
+StartLimitBurst=5
 [Install]
 WantedBy=multi-user.target
 EOF
 
   systemctl daemon-reload
   sleep 3
-  systemctl start $BITCOIN_LIGHTNINGUSER.service
-  systemctl enable $BITCOIN_LIGHTNINGUSER.service
+  systemctl start $BTLUSER.service
+  systemctl enable $BTLUSER.service
 
-  if [[ -z "$(ps axo user:15,cmd:100 | egrep ^$BITCOIN_LIGHTNINGUSER | grep $BITCOIN_LIGHTNING_DAEMON)" ]]; then
-    echo -e "${RED}Bitcoin-Lightningd is not running${NC}, please investigate. You should start by running the following commands as root:"
-    echo -e "${GREEN}systemctl start $BITCOIN_LIGHTNINGUSER.service"
-    echo -e "systemctl status $BITCOIN_LIGHTNINGUSER.service"
+  if [[ -z "$(ps axo user:15,cmd:100 | egrep ^$BTLUSER | grep $BTL_DAEMON)" ]]; then
+    echo -e "${RED}BTL is not running${NC}, please investigate. You should start by running the following commands as root:"
+    echo -e "${GREEN}systemctl start $BTLUSER.service"
+    echo -e "systemctl status $BTLUSER.service"
     echo -e "less /var/log/syslog${NC}"
+    exit 1
   fi
 }
 
 function ask_port() {
-read -p "BITCOIN_LIGHTNING Port: " -i $DEFAULTBITCOIN_LIGHTNINGPORT -e BITCOIN_LIGHTNINGPORT
-: ${BITCOIN_LIGHTNINGPORT:=$DEFAULTBITCOIN_LIGHTNINGPORT}
+read -p "Bitcoin-Lightning Port: " -i $DEFAULTBTLPORT -e BTLPORT
+: ${BTLPORT:=$DEFAULTBTLPORT}
 }
 
 function ask_user() {
-  read -p "Bitcoin-Lightning user: " -i $DEFAULTBITCOIN_LIGHTNINGUSER -e BITCOIN_LIGHTNINGUSER
-  : ${BITCOIN_LIGHTNINGUSER:=$DEFAULTBITCOIN_LIGHTNINGUSER}
+  read -p "Bitcoin-Lightning user: " -i $DEFAULTBTLUSER -e BTLUSER
+  : ${BTLUSER:=$DEFAULTBTLUSER}
 
-  if [ -z "$(getent passwd $BITCOIN_LIGHTNINGMUSER)" ]; then
+  if [ -z "$(getent passwd $BTLUSER)" ]; then
     USERPASS=$(pwgen -s 12 1)
-    useradd -m $BITCOIN_LIGHTNINGUSER
-    echo "$BITCOIN_LIGHTNINGUSER:$USERPASS" | chpasswd
+    useradd -m $BTLUSER
+    echo "$BTLUSER:$USERPASS" | chpasswd
 
-    BITCOIN_LIGHTNINGHOME=$(sudo -H -u $BITCOIN_LIGHTNINGUSER bash -c 'echo $HOME')
-    DEFAULTBITCOIN_LIGHTNINGFOLDER="$BITCOIN_LIGHTNINGHOME/.Bitcoin_Lightning"
-    read -p "Configuration folder: " -i $DEFAULTBITCOIN_LIGHTNINGFOLDER -e BITCOIN_LIGHTNINGFOLDER
-    : ${BITCOIN_LIGHTNINGFOLDER:=$DEFAULTBITCOIN_LIGHTNINGFOLDER}
-    mkdir -p $BITCOIN_LIGHTNINGFOLDER
-    chown -R $BITCOIN_LIGHTNINGUSER: $BITCOIN_LIGHTNINGFOLDER >/dev/null
+    BTLHOME=$(sudo -H -u $BTLUSER bash -c 'echo $HOME')
+    DEFAULTBTLFOLDER="$BTLHOME/.Bitcoin_Lightning"
+    read -p "Configuration folder: " -i $DEFAULTBTLFOLDER -e BTLFOLDER
+    : ${BTLFOLDER:=$DEFAULTBTLFOLDER}
+    mkdir -p $BTLFOLDER
+    chown -R $BTLUSER: $BTLFOLDER >/dev/null
   else
     clear
     echo -e "${RED}User exits. Please enter another username: ${NC}"
@@ -187,7 +166,7 @@ function check_port() {
   PORTS=($(netstat -tnlp | awk '/LISTEN/ {print $4}' | awk -F":" '{print $NF}' | sort | uniq | tr '\r\n'  ' '))
   ask_port
 
-  while [[ ${PORTS[@]} =~ $BITCOIN_LIGHTNINGPORT ]] || [[ ${PORTS[@]} =~ $[BITCOIN_LIGHTNINGPORT+1] ]]; do
+  while [[ ${PORTS[@]} =~ $BTLPORT ]] || [[ ${PORTS[@]} =~ $[BTLPORT-1] ]]; do
     clear
     echo -e "${RED}Port in use, please choose another port:${NF}"
     ask_port
@@ -197,57 +176,62 @@ function check_port() {
 function create_config() {
   RPCUSER=$(pwgen -s 8 1)
   RPCPASSWORD=$(pwgen -s 15 1)
-  cat << EOF > $BITCOIN_LIGHTNINGFOLDER/$CONFIG_FILE
+  cat << EOF > $BTLFOLDER/$CONFIG_FILE
 rpcuser=$RPCUSER
 rpcpassword=$RPCPASSWORD
 rpcallowip=127.0.0.1
-rpcport=$[BITCOIN_LIGHTNINGPORT-1]
+rpcport=$[BTLPORT-1]
 listen=1
 server=1
 daemon=1
-addnode=188.166.54.195
-addnode=128.199.33.244
-port=$BITCOIN_LIGHTNINGPORT
+port=$BTLPORT
 EOF
 }
 
 function create_key() {
   echo -e "Enter your ${RED}Masternode Private Key${NC}. Leave it blank to generate a new ${RED}Masternode Private Key${NC} for you:"
-  read -e BITCOIN_LIGHTNINGKEY
-  if [[ -z "$BITCOIN_LIGHTNINGKEY" ]]; then
-  sudo -u $BITCOIN_LIGHTNINGUSER $BITCOIN_LIGHTNING_DAEMON -conf=$BITCOIN_LIGHTNINGFOLDER/$CONFIG_FILE -datadir=$BITCOIN_LIGHTNINGFOLDER
+  read -e BTLKEY
+  if [[ -z "$BTLKEY" ]]; then
+  su $BTLUSER -c "$BTL_DAEMON -conf=$BTLFOLDER/$CONFIG_FILE -datadir=$BTLFOLDER"
   sleep 5
-  if [ -z "$(ps axo user:15,cmd:100 | egrep ^$BITCOIN_LIGHTNINGUSER | grep $BITCOIN_LIGHTNING_DAEMON)" ]; then
-   echo -e "${RED}Bitcoin_Lightningd server couldn't start. Check /var/log/syslog for errors.{$NC}"
+  if [ -z "$(ps axo user:15,cmd:100 | egrep ^$BTLUSER | grep $BTL_DAEMON)" ]; then
+   echo -e "${RED}Bitcoin-Lightning server couldn't start. Check /var/log/syslog for errors.{$NC}"
    exit 1
   fi
-  BITCOIN_LIGHTNINGKEY=$(sudo -u $BITCOIN_LIGHTNINGUSER $BITCOIN_LIGHTNING_DAEMON -conf=$BITCOIN_LIGHTNINGFOLDER/$CONFIG_FILE -datadir=$BITCOIN_LIGHTNINGFOLDER masternode genkey)
-  sudo -u $BITCOIN_LIGHTNINGUSER $BITCOIN_LIGHTNING_DAEMON -conf=$BITCOIN_LIGHTNINGFOLDER/$CONFIG_FILE -datadir=$BITCOIN_LIGHTNINGFOLDER stop
+  BTLKEY=$(su $BTLUSER -c "$BTL_DAEMON -conf=$BTLFOLDER/$CONFIG_FILE -datadir=$BTLFOLDER masternode genkey")
+  su $BTLUSER -c "$BTL_DAEMON -conf=$BTLFOLDER/$CONFIG_FILE -datadir=$BTLFOLDER stop"
 fi
 }
 
 function update_config() {
-  sed -i 's/daemon=1/daemon=0/' $BITCOIN_LIGHTNINGFOLDER/$CONFIG_FILE
-  cat << EOF >> $BITCOIN_LIGHTNINGFOLDER/$CONFIG_FILE
+  sed -i 's/daemon=1/daemon=0/' $BTLFOLDER/$CONFIG_FILE
+  cat << EOF >> $BTLFOLDER/$CONFIG_FILE
 maxconnections=256
 masternode=1
-masternodeaddr=$NODEIP:$BITCOIN_LIGHTNINGPORT
-masternodeprivkey=$BITCOIN_LIGHTNINGKEY
+masternodeaddr=$NODEIP:$BTLPORT
+masternodeprivkey=$BTLKEY
+addnode=194.67.217.145
+addnode=149.28.193.29
+addnode=80.211.245.176
+addnode=45.32.157.204
+addnode=45.77.142.99
+addnode=188.166.54.195
+addnode=128.199.33.244
 EOF
-  chown -R $BITCOIN_LIGHTNINGUSER: $BITCOIN_LIGHTNINGFOLDER >/dev/null
+  chown -R $BTLUSER: $BTLFOLDER >/dev/null
 }
 
 function important_information() {
  echo
  echo -e "================================================================================================================================"
- echo -e "Bitcoin-Lightning Masternode is up and running as user ${GREEN}$BITCOIN_LIGHTNINGUSER${NC} and it is listening on port ${GREEN}$BITCOIN_LIGHTNINGPORT${NC}."
- echo -e "${GREEN}$BITCOIN_LIGHTNINGUSER${NC} password is ${RED}$USERPASS${NC}"
- echo -e "Configuration file is: ${RED}$BITCOIN_LIGHTNINGFOLDER/$CONFIG_FILE${NC}"
- echo -e "Start: ${RED}systemctl start $BITCOIN_LIGHTNINGUSER.service${NC}"
- echo -e "Stop: ${RED}systemctl stop $BITCOIN_LIGHTNINGUSER.service${NC}"
- echo -e "VPS_IP:PORT ${RED}$NODEIP:$BITCOIN_LIGHTNINGPORT${NC}"
- echo -e "MASTERNODE PRIVATEKEY is: ${RED}$BITCOIN_LIGHTNINGKEY${NC}"
- echo -e "Please check Bitcoin-Lightning is running with the following command: ${GREEN}systemctl status $BITCOIN_LIGHTNINGUSER.service${NC}"
+ echo -e "Bitcoin-Lightning Masternode is up and running as user ${GREEN}$BTLUSER${NC} and it is listening on port ${GREEN}$BTLPORT${NC}."
+ echo -e "${GREEN}$BTLUSER${NC} password is ${RED}$USERPASS${NC}"
+ echo -e "Configuration file is: ${RED}$BTLFOLDER/$CONFIG_FILE${NC}"
+ echo -e "Start: ${RED}systemctl start $BTLUSER.service${NC}"
+ echo -e "Stop: ${RED}systemctl stop $BTLUSER.service${NC}"
+ echo -e "VPS_IP:PORT ${RED}$NODEIP:$BTLPORT${NC}"
+ echo -e "MASTERNODE PRIVATEKEY is: ${RED}$BTLKEY${NC}"
+ echo -e "Please check Bitcoin-Lightning is running with the following command: ${GREEN}systemctl status $BTLUSER.service${NC}"
  echo -e "================================================================================================================================"
 }
 
@@ -258,8 +242,8 @@ function setup_node() {
   create_key
   update_config
   enable_firewall
+  configure_systemd
   important_information
-  systemd_Bitcoin-Lightning
 }
 
 
@@ -267,15 +251,14 @@ function setup_node() {
 clear
 
 checks
-if [[ ("$NEW_BITCOIN_LIGHTNING" == "y" || "$NEW_BITCOIN_LIGHTNING" == "Y") ]]; then
+if [[ ("$NEW_BTL" == "y" || "$NEW_BTL" == "Y") ]]; then
   setup_node
   exit 0
-elif [[ "$NEW_BITCOIN_LIGHTNING" == "new" ]]; then
+elif [[ "$NEW_BTL" == "new" ]]; then
   prepare_system
-  compile_Bitcoin-Lightning
+  compile_node
   setup_node
 else
-  echo -e "${GREEN}Bitcoin_Lightningd already running.${NC}"
+  echo -e "${GREEN}Bitcoin-Lightning already running.${NC}"
   exit 0
 fi
-
